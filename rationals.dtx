@@ -1,0 +1,1154 @@
+% \iffalse meta-comment
+%<*internal>
+\iffalse
+%</internal>
+%<*readme>
+----------------------------------------------------------------
+rationals --- LaTeX3 functions for working with rational numbers
+E-mail: Andrew Stacey <loopspace@mathforge.org>
+Released under the LaTeX Project Public License v1.3c or later
+See http://www.latex-project.org/lppl.txt
+----------------------------------------------------------------
+
+This package defines some functions for working with rational numbers, including polynomials with rational coefficients.
+%</readme>
+%<*internal>
+\fi
+\def\nameofplainTeX{plain}
+\ifx\fmtname\nameofplainTeX\else
+  \expandafter\begingroup
+\fi
+%</internal>
+%<*install>
+\input l3docstrip.tex
+\keepsilent
+\askforoverwritefalse
+\preamble
+----------------------------------------------------------------
+rationals --- LaTeX3 functions for working with rational numbers
+E-mail: Andrew Stacey <loopspace@mathforge.org>
+Released under the LaTeX Project Public License v1.3c or later
+See http://www.latex-project.org/lppl.txt
+----------------------------------------------------------------
+\endpreamble
+\postamble
+
+Copyright (C) 2025 Andrew Stacey
+
+It may be distributed and/or modified under the conditions of the
+LaTeX Project Public License (LPPL), either version 1.3c of this
+license or (at your option) any later version.  The latest version
+of this license is in the file
+
+   https://www.latex-project.org/lppl.txt
+
+This work is "maintained" (as per LPPL maintenance status) by
+Andrew Stacey.
+
+This work consists of the files  rationals.dtx
+and the derived files            rationals.sty
+\endpostamble
+\usedir{tex/latex/rationals}
+\generate{
+  \file{rationals.sty}{\from{\jobname.dtx}{package}}
+}
+\usedir{doc/latex/rationals}
+\generate{
+  \file{README.txt}{\from{\jobname.dtx}{readme}}
+}
+%</install>
+%<install>\endbatchfile
+%<*internal>
+\nopreamble\nopostamble
+\ifx\fmtname\nameofplainTeX
+  \expandafter\endbatchfile
+\else
+  \expandafter\endgroup
+\fi
+%</internal>
+%<*driver>
+\documentclass[full]{l3doc}
+\usepackage{rationals}
+\usepackage{fancyvrb}
+\EnableCrossrefs
+\CodelineIndex
+\RecordChanges
+\begin{document}
+\DocInput{\jobname.dtx}
+\end{document}
+%</driver>
+% \fi
+% \CheckSum{}
+%
+% \CharacterTable
+%  {Upper-case    \A\B\C\D\E\F\G\H\I\J\K\L\M\N\O\P\Q\R\S\T\U\V\W\X\Y\Z
+%   Lower-case    \a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\x\y\z
+%   Digits        \0\1\2\3\4\5\6\7\8\9
+%   Exclamation   \!     Double quote  \"     Hash (number) \#
+%   Dollar        \$     Percent       \%     Ampersand     \&
+%   Acute accent  \'     Left paren    \(     Right paren   \)
+%   Asterisk      \*     Plus          \+     Comma         \,
+%   Minus         \-     Point         \.     Solidus       \/
+%   Colon         \:     Semicolon     \;     Less than     \<
+%   Equals        \=     Greater than  \>     Question mark \?
+%   Commercial at \@     Left bracket  \[     Backslash     \\
+%   Right bracket \]     Circumflex    \^     Underscore    \_
+%   Grave accent  \`     Left brace    \{     Vertical bar  \|
+%   Right brace   \}     Tilde         \~}
+%
+%
+% \changes{1.0}{2023/01/04}{Initial implementation of rationals as token lists}
+% \changes{1.2}{2025/02/21}{Functions for manipulation of rationals and polynomials}
+%
+% \DoNotIndex{\newcommand, \newenvironment}
+% \pdfstringdefDisableCommands{%
+%  \def\\{}%
+%  \def\url#1{<#1>}%
+% }
+%
+% \providecommand*{\url}{\texttt}
+%
+% \GetFileInfo{rationals.sty}
+%
+% \title{Rational Numbers}
+%
+% \author{Andrew Stacey \\ \url{loopspace@mathforge.org}}
+%
+% \date{\fileversion~ from \filedate}
+%
+% \maketitle
+%
+% \begin{documentation}
+%
+% This is an attempt to code basic functions for rational numbers in \LaTeX3.
+%
+% \end{documentation}
+%
+% \begin{implementation}
+%
+% \section{Rational Implementation}
+%
+%    \begin{macrocode}
+%<*package>
+%    \end{macrocode}
+% Namespacing
+%    \begin{macrocode}
+%<@@=rat>
+%    \end{macrocode}
+%
+% We're an \Verb!Expl3! package
+%    \begin{macrocode}
+\ProvidesExplPackage {rationals} {2025/02/21} {1.2} {Macros for typesetting rational numbers}
+%    \end{macrocode}
+%
+% \subsection{Rational Numbers}
+%
+% Define some variables, most for temporary use
+%    \begin{macrocode}
+\tl_new:N   \l_@@_tmpa_tl
+\int_new:N  \l_@@_tmpa_int
+\seq_new:N  \l_@@_tmpa_seq
+\seq_new:N  \l_@@_tmpb_seq
+\bool_new:N \l_@@_first_term_bool
+\prop_new:N \l_@@_tmpa_prop
+%    \end{macrocode}
+% These are used for the core functions to work with \TeX's scoping.
+% Since macros work by code replacement, they aren't scoped by default.
+% But including scoping makes it harder to work with return values, so my way round this is to define some global variables that will be used as the return values internally.
+% So for a function, I have a core macro that is scoped and does the work and then sets one of these to its result.
+%
+% Then there are wrapper functions around these that deal with any assignments of that result.
+%    \begin{macrocode}
+\int_new:N \g_@@_output_int
+\tl_new:N  \g_@@_output_tl
+\seq_new:N  \g_@@_output_seq
+%    \end{macrocode}
+%
+% A rational number is stored as a three-element token list.
+% The first element is the sign, stored as \(\pm 1\).
+% The second is the numerator, and the third is the denominator.
+%
+% Two constant rationals are defined.
+%    \begin{macrocode}
+\tl_const:Nn \c_@@_zero_tl { {1}{0}{1} }
+\tl_const:Nn \c_@@_one_tl { {1}{1}{1} }
+%    \end{macrocode}
+%
+% \begin{macro}{
+% \rat_new:N
+% }
+% Initialise a token list for use as a rational number.
+%    \begin{macrocode}
+\cs_new_nopar:Npn \rat_new:N #1
+{
+  \tl_new:N #1
+}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_zero:N,
+% \rat_gzero:N
+% }
+% Make the rational number \(0\).
+%    \begin{macrocode}
+\cs_new_nopar:Npn \rat_zero:N #1
+{
+  \tl_set:Nn #1 {{1}{0}{1}}
+}
+
+\cs_new_nopar:Npn \rat_gzero:N #1
+{
+  \tl_gset:Nn #1 {{1}{0}{1}}
+}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_uminus:Nn,
+% \rat_uminus:NV,
+% \rat_uminus:Ne,
+% \rat_guminus:Nn,
+% \rat_guminus:NV,
+% \rat_guminus:Ne,
+% \rat_uminus:N,
+% \rat_guminus:N,
+% }
+%
+% These compute the unitary negative of a rational number by flipping the sign bit.
+% The rational number is passed as a token list in the second parameter and stored in the first.
+% The variant with a single parameter overwrites itself.
+%    \begin{macrocode}
+\cs_new_nopar:Npn \@@_uminus:n #1
+{
+  \group_begin:
+  \int_set:Nn \l_@@_tmpa_int {-(\tl_head:n #1)}
+  \tl_gset:Nx \g_@@_output_tl {\tl_tail:n #1}
+  \tl_gput_left:Nx \g_@@_output_tl {{\int_use:N \l_@@_tmpa_int}}
+  \group_end:
+}
+
+\cs_new_protected_nopar:Npn \rat_uminus:Nn #1#2
+{
+  \@@_uminus:n {#2}
+  \tl_set_eq:NN #1 \g_@@_output_tl
+  \tl_gclear:N \g_@@_output_tl
+}
+
+\cs_new_protected_nopar:Npn \rat_guminus:Nn #1#2
+{
+  \@@_uminus:n {#2}
+  \tl_gset_eq:NN #1 \g_@@_output_tl
+  \tl_gclear:N \g_@@_output_tl
+}
+
+\cs_generate_variant:Nn \rat_uminus:Nn {NV, Ne}
+\cs_generate_variant:Nn \rat_guminus:Nn {NV, Ne}
+
+\cs_new_protected_nopar:Npn \rat_uminus:N #1
+{
+  \rat_uminus:NV #1#1
+}
+
+\cs_new_protected_nopar:Npn \rat_guminus:N #1
+{
+  \rat_guminus:NV #1#1
+}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_simplify:Nn,
+% \rat_simplify:NV,
+% \rat_gsimplify:Nn,
+% \rat_gsimplify:NV,
+% \rat_simplify:N,
+% \rat_gsimplify:N,
+% }
+%
+% These simplify the rational number by finding the greatest common divisor of the numerator and denominator and then dividing both by that.
+%    \begin{macrocode}
+\cs_new_protected_nopar:Npn \@@_simplify:n #1
+{
+  \group_begin:
+  \@@_gcd:ee { \tl_item:nn {#1}{2} } { \tl_item:nn {#1}{3} }
+  \tl_gclear:N \g_@@_output_tl
+  \tl_gset:Ne \g_@@_output_tl
+  {
+    { \tl_item:nn {#1}{1} } 
+    {
+      \int_eval:n { \tl_item:nn {#1}{2} / \g_@@_output_int }
+    }
+    {
+      \int_eval:n { \tl_item:nn {#1}{3} / \g_@@_output_int }
+    }
+  }
+  \int_gzero:N \g_@@_output_int
+  \group_end:
+}
+
+\cs_new_protected_nopar:Npn \rat_simplify:Nn #1#2
+{
+  \@@_simplify:n {#2}
+  \tl_set_eq:NN #1 \g_@@_output_tl
+}
+
+\cs_new_protected_nopar:Npn \rat_gsimplify:Nn #1#2
+{
+  \@@_simplify:n {#2}
+  \tl_gset_eq:NN #1 \g_@@_output_tl
+}
+
+\cs_generate_variant:Nn \rat_simplify:Nn {NV}
+\cs_generate_variant:Nn \rat_gsimplify:Nn {NV}
+
+\cs_new_protected_nopar:Npn \rat_simplify:N #1
+{
+  \rat_simplify:NV #1#1
+}
+
+\cs_new_protected_nopar:Npn \rat_gsimplify:N #1
+{
+  \rat_gsimplify:NV #1#1
+}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}[internal]{
+% \@@_gcd:nn
+% }
+%
+% Find the greatest common divisor of the two integers, storing the result in \Verb!\g_@@_output_int!.
+% This is not scoped since it is a recursive algorithm and I wanted to avoid too many nested groupings.
+% There is no issue with this since the only assignment is at the end.
+%    \begin{macrocode}
+\cs_new_protected_nopar:Npn \@@_gcd:nn #1#2
+{
+  \int_compare:nNnTF {#1} > {#2}
+  {
+    \@@_gcd:nn {#2}{#1}
+  }
+  {
+    \int_compare:nNnTF {#1} = {0}
+    {
+      \int_gset:Nn \g_@@_output_int {#2}
+    }
+    {
+      \@@_gcd:en { \int_mod:nn {#2}{#1} } {#1}
+    }
+  }
+}
+
+\cs_generate_variant:Nn \@@_gcd:nn {en, ee}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_add:Nnn,
+% \rat_add:NVn,
+% \rat_add:NVV,
+% \rat_gadd:Nnn,
+% \rat_gadd:NVn,
+% \rat_gadd:NVV,
+% \rat_add:Nn,
+% \rat_add:NV,
+% \rat_add:Ne,
+% \rat_gadd:Nn,
+% \rat_gadd:NV,
+% \rat_gadd:Ne,
+% }
+%
+% Add the two rational numbers passed through the second and third parameters, storing the answer in the first parameter.
+%    \begin{macrocode}
+\cs_new_nopar:Npn \@@_add:nn #1#2
+{
+  \group_begin:
+  \tl_gclear:N \g_@@_output_tl
+  \int_set:Nn \l_@@_tmpa_int
+  {
+    \tl_item:nn {#1}{1} * \tl_item:nn {#1}{2} * \tl_item:nn {#2}{3}
+    +
+    \tl_item:nn {#2}{1} * \tl_item:nn {#2}{2} * \tl_item:nn {#1}{3}
+  }
+  \int_compare:nNnTF \l_@@_tmpa_int < {0}
+  {
+    \tl_gset:Ne \g_@@_output_tl {
+      {-1}
+      {\int_eval:n {-\l_@@_tmpa_int} }
+      {\int_eval:n {\tl_item:nn {#1}{3} * \tl_item:nn{#2}{3}}}
+    }
+  }
+  {
+    \tl_gset:Ne \g_@@_output_tl {
+      {1}
+      {\int_use:N \l_@@_tmpa_int}
+      {\int_eval:n {\tl_item:nn {#1}{3} * \tl_item:nn{#2}{3}}}
+    }
+  }
+  \group_end:
+}
+
+\cs_new_protected_nopar:Npn \rat_add:Nnn #1#2#3
+{
+  \@@_add:nn {#2}{#3}
+  \tl_set_eq:NN #1 \g_@@_output_tl
+  \rat_simplify:N #1
+}
+
+\cs_new_protected_nopar:Npn \rat_gadd:Nnn #1#2#3
+{
+  \@@_add:nn {#2}{#3}
+  \tl_gset_eq:NN #1 \g_@@_output_tl
+  \rat_gsimplify:N #1
+}
+
+\cs_generate_variant:Nn \rat_add:Nnn {NVV, NVn}
+\cs_generate_variant:Nn \rat_gadd:Nnn {NVV, NVn}
+
+\cs_new_protected_nopar:Npn \rat_add:Nn #1#2
+{
+  \rat_add:NVn #1#1{#2}
+}
+
+\cs_new_protected_nopar:Npn \rat_gadd:Nn #1#2
+{
+  \rad_gadd:NVn #1#1{#2}
+}
+
+\cs_generate_variant:Nn \rat_add:Nn {NV, Ne}
+\cs_generate_variant:Nn \rat_gadd:Nn {NV, Ne}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_sub:Nnn,
+% \rat_sub:NVn,
+% \rat_sub:NVV,
+% \rat_gsub:Nnn,
+% \rat_gsub:NVn,
+% \rat_gsub:NVV,
+% \rat_sub:Nn,
+% \rat_sub:NV,
+% \rat_sub:Ne,
+% \rat_gsub:Nn,
+% \rat_gsub:NV,
+% \rat_gsub:Ne,
+% }
+%
+% Subtract the second rational number (third parameter) from the first (second parameter) and store the answer in the first parameter.
+% The versions with only two parameters overwrite the first rational number with the result.
+%    \begin{macrocode}
+\cs_new_nopar:Npn \@@_sub:nn #1#2
+{
+  \group_begin:
+  \tl_gclear:N \g_@@_output_tl
+  \int_set:Nn \l_@@_tmpa_int
+  {
+    \tl_item:nn {#1}{1} * \tl_item:nn {#1}{2} * \tl_item:nn {#2}{3}
+    -
+    \tl_item:nn {#2}{1} * \tl_item:nn {#2}{2} * \tl_item:nn {#1}{3}
+  }
+  \int_compare:nNnTF \l_@@_tmpa_int < {0}
+  {
+    \tl_gset:Ne \g_@@_output_tl {
+      {-1}
+      {\int_eval:n {-\l_@@_tmpa_int} }
+      {\int_eval:n {\tl_item:nn {#1}{3} * \tl_item:nn{#2}{3}}}
+    }
+  }
+  {
+    \tl_gset:Ne \g_@@_output_tl {
+      {1}
+      {\int_use:N \l_@@_tmpa_int}
+      {\int_eval:n {\tl_item:nn {#1}{3} * \tl_item:nn{#2}{3}}}
+    }
+  }
+  \group_end:
+}
+
+\cs_new_protected_nopar:Npn \rat_sub:Nnn #1#2#3
+{
+  \@@_sub:nn {#2}{#3}
+  \tl_set_eq:NN #1 \g_@@_output_tl
+  \rat_simplify:N #1
+}
+
+\cs_new_protected_nopar:Npn \rat_gsub:Nnn #1#2#3
+{
+  \@@_sub:nn {#2}{#3}
+  \tl_gset_eq:NN #1 \g_@@_output_tl
+  \rat_gsimplify:N #1
+}
+
+\cs_generate_variant:Nn \rat_sub:Nnn {NVV, NVn}
+\cs_generate_variant:Nn \rat_gsub:Nnn {NVV, NVn}
+
+\cs_new_protected_nopar:Npn \rat_sub:Nn #1#2
+{
+  \rad_sub:NVn #1#1#2
+}
+
+\cs_new_protected_nopar:Npn \rat_gsub:Nn #1#2
+{
+  \rad_gsub:NVn #1#1#2
+}
+
+\cs_generate_variant:Nn \rat_sub:Nn {NV}
+\cs_generate_variant:Nn \rat_gsub:Nn {NV}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_mult:Nnn,
+% \rat_mult:NVn,
+% \rat_mult:NVV,
+% \rat_gmult:Nnn,
+% \rat_gmult:NVn,
+% \rat_gmult:NVV,
+% \rat_mult:Nn,
+% \rat_mult:NV,
+% \rat_mult:Ne,
+% \rat_gmult:Nn,
+% \rat_gmult:NV,
+% \rat_gmult:Ne,
+% }
+%
+% Multiply the two rational numbers (second and third parameters) and store the answer in the first parameter.
+% The versions with only two parameters overwrite the first rational number with the result.
+%    \begin{macrocode}
+\cs_new_nopar:Npn \@@_mult:nn #1#2
+{
+  \group_begin:
+  \tl_gclear:N \g_@@_output_tl
+  \tl_gset:Ne \g_@@_output_tl
+  {
+    {
+      \int_eval:n { \tl_item:nn{#1}{1} * \tl_item:nn {#2}{1} }
+    }
+    {
+      \int_eval:n { \tl_item:nn{#1}{2} * \tl_item:nn {#2}{2} }
+    }
+    {
+      \int_eval:n { \tl_item:nn{#1}{3} * \tl_item:nn {#2}{3} }
+    }
+  }
+  \group_end:
+}
+
+\cs_new_protected_nopar:Npn \rat_mult:Nnn #1#2#3
+{
+  \@@_mult:nn {#2}{#3}
+  \tl_set_eq:NN #1 \g_@@_output_tl
+  \rat_simplify:N #1
+}
+
+\cs_new_protected_nopar:Npn \rat_gmult:Nnn #1#2#3
+{
+  \@@_mult:nn {#2}{#3}
+  \tl_gset_eq:NN #1 \g_@@_output_tl
+  \rat_gsimplify:N #1
+}
+
+\cs_generate_variant:Nn \rat_mult:Nnn {NVV, NVn, Nee}
+\cs_generate_variant:Nn \rat_gmult:Nnn {NVV, NVn, Nee}
+
+\cs_new_protected_nopar:Npn \rat_mult:Nn #1#2
+{
+  \rad_mult:NVn #1#1#2
+}
+
+\cs_new_protected_nopar:Npn \rat_gmult:Nn #1#2
+{
+  \rad_gmult:NVn #1#1#2
+}
+
+\cs_generate_variant:Nn \rat_mult:Nn {NV}
+\cs_generate_variant:Nn \rat_gmult:Nn {NV}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_div:Nnn,
+% \rat_div:NVn,
+% \rat_div:NVV,
+% \rat_gdiv:Nnn,
+% \rat_gdiv:NVn,
+% \rat_gdiv:NVV,
+% \rat_div:Nn,
+% \rat_div:NV,
+% \rat_div:Ne,
+% \rat_gdiv:Nn,
+% \rat_gdiv:NV,
+% \rat_gdiv:Ne,
+% }
+%
+% Divide the first rational number (second parameter) by the second (third parameter) and store the answer in the first parameter.
+% The versions with only two parameters overwrite the first rational number with the result.
+%    \begin{macrocode}
+\cs_new_nopar:Npn \@@_div:nn #1#2
+{
+  \group_begin:
+  \tl_gclear:N \g_@@_output_tl
+  \tl_gset:Ne \g_@@_output_tl
+  {
+    {
+      \int_eval:n { \tl_item:nn{#1}{1} * \tl_item:nn {#2}{1} }
+    }
+    {
+      \int_eval:n { \tl_item:nn{#1}{2} * \tl_item:nn {#2}{3} }
+    }
+    {
+      \int_eval:n { \tl_item:nn{#1}{3} * \tl_item:nn {#2}{2} }
+    }
+  }
+  \group_end:
+}
+
+\cs_new_protected_nopar:Npn \rat_div:Nnn #1#2#3
+{
+  \@@_div:nn {#2}{#3}
+  \tl_set_eq:NN #1 \g_@@_output_tl
+  \rat_simplify:N #1
+}
+
+\cs_new_protected_nopar:Npn \rat_gdiv:Nnn #1#2#3
+{
+  \@@_div:nn {#2}{#3}
+  \tl_gset_eq:NN #1 \g_@@_output_tl
+  \rat_gsimplify:N #1
+}
+
+\cs_generate_variant:Nn \rat_div:Nnn {NVV, NVn}
+\cs_generate_variant:Nn \rat_gdiv:Nnn {NVV, NVn}
+
+\cs_new_protected_nopar:Npn \rat_div:Nn #1#2
+{
+  \rad_div:NVn #1#1#2
+}
+
+\cs_new_protected_nopar:Npn \rat_gdiv:Nn #1#2
+{
+  \rad_gdiv:NVn #1#1#2
+}
+
+\cs_generate_variant:Nn \rat_div:Nn {NV}
+\cs_generate_variant:Nn \rat_gdiv:Nn {NV}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_to_frac:n,
+% \rat_to_signed_frac:n
+% }
+%
+% Format a rational number for display, using \Verb!\frac! if the rational number is not an integer.
+% The \Verb!signed! version always includes the sign, whereas the unsigned version only includes a negative sign.
+%    \begin{macrocode}
+\cs_new_nopar:Npn \rat_to_frac:n #1
+{
+  \int_compare:nNnT { \tl_item:nn {#1} {1} } = {-1}
+  {
+    -
+  }
+  \int_compare:nNnTF { \tl_item:nn {#1} {3} } = {1}
+  {
+    \tl_item:nn {#1}{2}
+  }
+  {
+    \frac{ \tl_item:nn {#1}{2} }{ \tl_item:nn {#1}{3} }
+  }
+}
+
+\cs_new_protected_nopar:Npn \rat_to_signed_frac:n #1
+{
+  \int_compare:nNnTF { \tl_item:nn {#1} {1} } = {-1}
+  {
+    -
+  }
+  {
+    +
+  }
+  \int_compare:nNnTF { \tl_item:nn {#1} {3} } = {1}
+  {
+    \tl_item:nn {#1}{2}
+  }
+  {
+    \frac{ \tl_item:nn {#1}{2} }{ \tl_item:nn {#1}{3} }
+  }
+}
+
+\cs_generate_variant:Nn \rat_to_frac:n {V, e, o}
+\cs_generate_variant:Nn \rat_to_signed_frac:n {V, e, o}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_parse:Nn,
+% \rat_parse:No,
+% \rat_parse:Ne,
+% \rat_gparse:Nn,
+% \rat_gparse:No,
+% \rat_gparse:Ne,
+% }
+%
+% Parse a rational number (from the second parameter) in the form \Verb!-7/12! and store it in the token list specified by the first parameter.
+% This can cope with integers as well.
+%    \begin{macrocode}
+\cs_new_protected_nopar:Npn \@@_parse:n #1
+{
+  \group_begin:
+  \seq_set_split:Nnn \l_@@_tmpa_seq {/} {#1}
+  \tl_gclear:N \g_@@_output_tl
+
+  \int_compare:nNnTF {\seq_item:Nn \l_@@_tmpa_seq {1}} < {1}
+  {
+    \tl_gset:Nn \g_@@_output_tl {{-1}}
+  }
+  {
+    \tl_gset:Nn \g_@@_output_tl {{1}}
+  }
+  \tl_gput_right:Ne \g_@@_output_tl
+  {{\int_abs:n {\seq_item:Nn \l_@@_tmpa_seq {1}}}}
+
+  \int_compare:nNnTF {\seq_count:N \l_@@_tmpa_seq} = {1}
+  {
+    \tl_gput_right:Nn \g_@@_output_tl {{1}}
+  }
+  {
+    \tl_gput_right:Ne \g_@@_output_tl {{ \seq_item:Nn \l_@@_tmpa_seq {2}}}
+  }
+  \group_end:
+}
+
+\cs_new_protected_nopar:Npn \rat_parse:Nn #1#2
+{
+  \@@_parse:n {#2}
+  \tl_set_eq:NN #1 \g_@@_output_tl
+}
+
+\cs_new_protected_nopar:Npn \rat_gparse:Nn #1#2
+{
+  \@@_parse:n {#2}
+  \tl_gset_eq:NN #1 \g_@@_output_tl
+}
+
+\cs_generate_variant:Nn \rat_parse:Nn {No, Ne}
+\cs_generate_variant:Nn \rat_gparse:Nn {No, Ne}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_compare:nNnTF,
+% \rat_compare:VNnTF,
+% \rat_compare:VNVTF
+% }
+%
+% Compare two rational numbers.
+%    \begin{macrocode}
+\prg_new_conditional:Npnn \rat_compare:nNn #1#2#3 { p, T, F, TF }
+{
+  \int_compare:nNnTF
+  { \tl_item:Nn {#1} {1} * \tl_item:Nn {#1} {2} * \tl_item:Nn {#3} {3} }
+  #2
+  { \tl_item:Nn {#3} {1} * \tl_item:Nn {#3} {2} * \tl_item:Nn {#1} {3} }
+  {
+    \prg_return_true:
+  }
+  {
+    \prg_return_false:
+  }
+}
+
+\prg_generate_conditional_variant:Nnn \rat_compare:nNn {VNV,VNn} {p,T,F,TF}
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{Polynomials}
+% 
+% A monomial is a four element token list with the first term being the power of the variable and the rest being the coefficient encoded as a rational number.
+% This ordering is chosen as it is easier to work with the head of a token list separately to the rest.
+%
+% A polynomial is a sequence of monomials.
+%
+% \begin{macro}{
+% \rat_monomial:nn,
+% \rat_signed_monomial:nn
+% }
+% This typesets a monomial.
+% The first parameter specifies the monomial and the second is the variable.
+% The \Verb!signed! version always includes the sign.
+%    \begin{macrocode}
+\cs_new_protected_nopar:Npn \rat_monomial:nn #1#2
+{
+%    \end{macrocode}
+% Test the coefficient to see if it is zero.
+% If it is, don't do anything.
+%    \begin{macrocode}
+  \tl_set:Ne \l_@@_tmpa_tl {\tl_tail:n {#1}}
+  \rat_compare:VNVF \l_@@_tmpa_tl = \c_@@_zero_tl
+  {
+%    \end{macrocode}
+% Non-zero, so we have something to typeset.
+% Next is to look at the power to see if it is just a number.
+%    \begin{macrocode}
+    \int_compare:nNnTF { \tl_head:n {#1} } = {0}
+    {
+%    \end{macrocode}
+% Zero degree, typeset the number.
+%    \begin{macrocode}
+      \rat_to_frac:e {\tl_tail:n {#1}}
+    }
+    {
+%    \end{macrocode}
+%
+% Okay, so we have something to typeset that includes the variable.
+% Step through the variants: check the sign, check the denominator, check the power.
+%    \begin{macrocode}
+      \int_compare:nNnT { \tl_item:nn {#1} {2} } = {-1}
+      {
+        -
+      }
+      \int_compare:nNnTF { \tl_item:nn {#1} {4} } = {1}
+      {
+        \int_compare:nNnF { \tl_item:nn {#1} {3} } = {1}
+        {
+          \tl_item:nn {#1}{3}
+        }
+        \int_compare:nNnTF { \tl_head:n {#1} } = {1}
+        {
+          #2
+        }
+        {
+          #2^{\tl_head:n {#1}}
+        }
+      }
+      {
+        \frac{
+          \int_compare:nNnF { \tl_item:nn {#1} {3} } = {1}
+          {
+            \tl_item:nn {#1}{3}
+          }
+          \int_compare:nNnTF { \tl_head:n {#1} } = {1}
+          {
+            #2
+          }
+          {
+            #2^{\tl_head:n {#1}}
+          }
+          
+        }{ \tl_item:nn {#1}{4} }
+      }
+      
+    }
+  }
+}
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\cs_new_protected_nopar:Npn \rat_signed_monomial:nn #1#2
+{
+  \int_compare:nNnT { \tl_item:nn {#1} {2} } = {1}
+  {
+    +
+  }
+  \rat_monomial:nn {#1}{#2}
+}
+
+\cs_generate_variant:Nn \rat_monomial:nn {Vn}
+\cs_generate_variant:Nn \rat_signed_monomial:nn {Vn}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_polynomial:Nn
+% }
+%
+% This typesets a polynomial
+% First parameter is a sequence, the second is the variable
+%    \begin{macrocode}
+\cs_new_protected_nopar:Npn \rat_polynomial:Nn #1#2
+{
+  \bool_set_true:N \l_@@_first_term_bool
+  \seq_map_inline:Nn #1
+  {
+    \tl_set:Ne \l_@@_tmpa_tl {\tl_tail:n {##1}}
+    \rat_compare:VNVF \l_@@_tmpa_tl = \c_@@_zero_tl
+    {
+      \bool_if:NTF \l_@@_first_term_bool
+      {
+        \rat_monomial:nn {##1}{#2}
+      }
+      {
+        \rat_signed_monomial:nn {##1}{#2}
+      }
+      \bool_set_false:N \l_@@_first_term_bool
+    }
+  }
+}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_simplify_polynomial:NN,
+% \rat_gsimplify_polynomial:NN,
+% \rat_simplify_polynomial:N,
+% \rat_gsimplify_polynomial:N,
+% }
+%
+% Simplify a polynomial, ensuring that like terms are combined and zero terms are removed.
+% It is also ordered from highest degree to lowest.
+%    \begin{macrocode} 
+\cs_new_protected_nopar:Npn \@@_simplify_polynomial:N #1
+{
+  \group_begin:
+  \prop_clear:N \l_@@_tmpa_prop
+  \seq_map_inline:Nn #1
+  {
+    \prop_get:NeNTF
+    \l_@@_tmpa_prop
+    {\tl_head:n {##1}}
+    \l_@@_tmpa_tl
+    {
+      \rat_add:Ne \l_@@_tmpa_tl { \tl_tail:n {##1} }
+      \prop_put:NeV \l_@@_tmpa_prop { \tl_head:n {##1} } \l_@@_tmpa_tl
+    }
+    {
+      \prop_put:Nee \l_@@_tmpa_prop
+      {\tl_head:n {##1}}
+      {\tl_tail:n {##1}}
+    }
+    
+  }
+  \seq_gclear:N \g_@@_output_seq
+  \prop_map_inline:Nn \l_@@_tmpa_prop
+  {
+    \rat_compare:VNnF \c_@@_zero_tl = {##2}
+    {
+      \seq_gpush:Nn \g_@@_output_seq {{##1}##2}
+    }
+  }
+  \seq_gsort:Nn \g_@@_output_seq
+  {
+    \int_compare:nNnTF {\tl_item:nn {##1}{1}} > {\tl_item:nn {##2}{1}}
+    { \sort_return_same: }
+    { \sort_return_swapped: }
+  }
+  \group_end:
+}
+
+\cs_new_protected_nopar:Npn \rat_simplify_polynomial:NN #1#2
+{
+  \@@_simplify_polynomial:N #2
+  \seq_set_eq:NN #1 \g_@@_output_seq
+}
+\cs_new_protected_nopar:Npn \rat_gsimplify_polynomial:NN #1#2
+{
+  \@@_simplify_polynomial:N #2
+  \seq_gset_eq:NN #1 \g_@@_output_seq
+}
+
+\cs_new_protected_nopar:Npn \rat_simplify_polynomial:N #1
+{
+  \rat_simplify_polynomial:NN #1#1
+}
+
+\cs_new_protected_nopar:Npn \rat_gsimplify_polynomial:N #1
+{
+  \rat_gsimplify_polynomial:NN #1#1
+}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_add_polynomials:NNN,
+% \rat_gadd_polynomials:NNN,
+% \rat_add_polynomials:NN,
+% \rat_gadd_polynomials:NN
+% }
+%
+% Add two polynomials.
+%    \begin{macrocode}
+\cs_new_protected_nopar:Npn \@@_add_polynomials:NN #1#2
+{
+  \group_begin:
+  \seq_clear:N \l_@@_tmpa_seq
+  \seq_concat:NNN \l_@@_tmpa_seq #1 #2
+  \@@_simplify_polynomial:N \l_@@_tmpa_seq
+  \group_end:
+}
+
+\cs_new_protected_nopar:Npn \rat_add_polynomials:NNN #1#2#3
+{
+  \@@_add_polynomials:NN #2#3
+  \seq_set_eq:NN #1 \g_@@_output_seq
+}
+\cs_new_protected_nopar:Npn \rat_gadd_polynomials:NNN #1#2#3
+{
+  \@@_add_polynomials:NN #2#3
+  \seq_gset_eq:NN #1 \g_@@_output_seq
+}
+
+\cs_new_protected_nopar:Npn \rat_add_polynomials:NN #1#2
+{
+  \@@_add_polynomials:NN #1#2
+  \seq_set_eq:NN #1 \g_@@_output_seq
+}
+\cs_new_protected_nopar:Npn \rat_gadd_polynomials:NN #1#2
+{
+  \@@_add_polynomials:NN #1#2
+  \seq_gset_eq:NN #1 \g_@@_output_seq
+}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_uminus_polynomials:NN,
+% \rat_guminus_polynomials:NN,
+% \rat_uminus_polynomials:N,
+% \rat_guminus_polynomials:N
+% }
+%
+% Negate a polynomial.
+%    \begin{macrocode}
+\cs_new_protected_nopar:Npn \@@_uminus_polynomial:N #1
+{
+  \group_begin:
+  \seq_clear:N \l_@@_tmpa_seq
+  \seq_map_inline:Nn #1
+  {
+    \rat_uminus:Ne \l_@@_tmpa_tl {\tl_tail:n {##1}}
+    \seq_put_right:Ne \l_@@_tmpa_seq
+    {{\tl_head:n {##1}}\tl_use:N \l_@@_tmpa_tl}
+  }
+  \group_end:
+}
+
+\cs_new_protected_nopar:Npn \rat_uminus_polynomial:NN #1#2
+{
+  \@@_uminus_polynomial:N #2
+  \seq_set_eq:NN #1 \g_@@_output_seq
+}
+\cs_new_protected_nopar:Npn \rat_guminus_polynomial:NN #1#2
+{
+  \@@_uminus_polynomial:N #2
+  \seq_gset_eq:NN #1 \g_@@_output_seq
+}
+\cs_new_protected_nopar:Npn \rat_uminus_polynomial:N #1
+{
+  \@@_uminus_polynomial:N #1
+  \seq_set_eq:NN #1 \g_@@_output_seq
+}
+\cs_new_protected_nopar:Npn \rat_guminus_polynomial:N #1
+{
+  \@@_uminus_polynomial:N #1
+  \seq_gset_eq:NN #1 \g_@@_output_seq
+}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_sub_polynomials:NNN,
+% \rat_gsub_polynomials:NNN,
+% \rat_sub_polynomials:NN,
+% \rat_gsub_polynomials:NN
+% }
+%
+% Subtract two polynomials.
+%    \begin{macrocode}
+\cs_new_protected_nopar:Npn \@@_sub_polynomials:NN #1#2
+{
+  \group_begin:
+  \seq_clear:N \l_@@_tmpa_seq
+  \seq_clear:N \l_@@_tmpb_seq
+  \rat_uminus_polynomial:NN \l_@@_tmpb_seq #2
+  \seq_concat:NNN \l_@@_tmpa_seq #1 \l_@@_tmpb_seq
+  \@@_simplify_polynomial:N \l_@@_tmpa_seq
+  \group_end:
+}
+
+\cs_new_protected_nopar:Npn \rat_sub_polynomials:NNN #1#2#3
+{
+  \@@_sub_polynomials:NN #2#3
+  \seq_set_eq:NN #1 \g_@@_output_seq
+}
+\cs_new_protected_nopar:Npn \rat_gsub_polynomials:NNN #1#2#3
+{
+  \@@_sub_polynomials:NN #2#3
+  \seq_gset_eq:NN #1 \g_@@_output_seq
+}
+
+\cs_new_protected_nopar:Npn \rat_sub_polynomials:NN #1#2
+{
+  \@@_sub_polynomials:NN #1#2
+  \seq_set_eq:NN #1 \g_@@_output_seq
+}
+\cs_new_protected_nopar:Npn \rat_gsub_polynomials:NN #1#2
+{
+  \@@_sub_polynomials:NN #1#2
+  \seq_gset_eq:NN #1 \g_@@_output_seq
+}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_mult_polynomials:NNN,
+% \rat_gmult_polynomials:NNN,
+% \rat_mult_polynomials:NN,
+% \rat_gmult_polynomials:NN
+% }
+%
+% Multiply two polynomials.
+%    \begin{macrocode}
+\cs_new_protected_nopar:Npn \@@_mult_polynomials:NN #1#2
+{
+  \group_begin:
+  \seq_clear:N \l_@@_tmpa_seq
+  \seq_map_inline:Nn #1
+  {
+    \seq_map_inline:Nn #2
+    {
+      \int_set:Nn \l_@@_tmpa_int
+      { (\tl_head:n {##1}) + (\tl_head:n {####1}) }
+      \rat_mult:Nee \l_@@_tmpa_tl
+      { \tl_tail:n {##1} } { \tl_tail:n {####1} }
+      \seq_put_right:Ne \l_@@_tmpa_seq
+      {
+        {\int_use:N \l_@@_tmpa_int}
+        \tl_use:N \l_@@_tmpa_tl
+      }
+    }
+  }
+  \@@_simplify_polynomial:N \l_@@_tmpa_seq
+  \group_end:
+}
+
+\cs_new_protected_nopar:Npn \rat_mult_polynomials:NNN #1#2#3
+{
+  \@@_mult_polynomials:NN #2#3
+  \seq_set_eq:NN #1 \g_@@_output_seq
+}
+\cs_new_protected_nopar:Npn \rat_gmult_polynomials:NNN #1#2#3
+{
+  \@@_mult_polynomials:NN #2#3
+  \seq_gset_eq:NN #1 \g_@@_output_seq
+}
+
+\cs_new_protected_nopar:Npn \rat_mult_polynomials:NN #1#2
+{
+  \@@_mult_polynomials:NN #1#2
+  \seq_set_eq:NN #1 \g_@@_output_seq
+}
+\cs_new_protected_nopar:Npn \rat_gmult_polynomials:NN #1#2
+{
+  \@@_mult_polynomials:NN #1#2
+  \seq_gset_eq:NN #1 \g_@@_output_seq
+}
+%    \end{macrocode}
+% \end{macro}
+% \end{implementation}
+%
+% \iffalse
+%</package>
+% \fi
+%\Finale
+\endinput
