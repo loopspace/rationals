@@ -1,0 +1,107 @@
+\RequirePackage{shellesc}
+\immediate\write18{tex rationals.dtx}
+\documentclass{article}
+
+\usepackage{fontspec}
+\usepackage{unicode-math}
+\setmainfont{TeX Gyre Bonum}
+\setmathfont{TeX Gyre Bonum Math}
+
+\usepackage{rationals}
+
+\ExplSyntaxOn
+\NewDocumentCommand \GCD {m m}
+{
+  \__rat_gcd:nn {#1}{#2}
+  \int_use:N \g__rat_output_int
+}
+
+\NewDocumentCommand \RatAdd {m m}
+{
+  \rat_parse:Nn \l_tmpa_tl {#1}
+  \rat_parse:Nn \l_tmpb_tl {#2}
+  \rat_add:NVV \l_tmpc_tl \l_tmpa_tl \l_tmpb_tl
+
+  \rat_to_frac:V \l_tmpc_tl
+}
+
+\NewDocumentCommand \RatMult {m m}
+{
+  \rat_parse:Nn \l_tmpa_tl {#1}
+  \rat_parse:Nn \l_tmpb_tl {#2}
+  \rat_mult:NVV \l_tmpc_tl \l_tmpa_tl \l_tmpb_tl
+
+  \rat_to_frac:V \l_tmpc_tl
+}
+
+\NewDocumentCommand \RatDiv {m m}
+{
+  \rat_parse:Nn \l_tmpa_tl {#1}
+  \rat_parse:Nn \l_tmpb_tl {#2}
+  \rat_div:NVV \l_tmpc_tl \l_tmpa_tl \l_tmpb_tl
+
+  \rat_to_frac:V \l_tmpc_tl
+}
+
+\NewDocumentCommand \RatCompare {m m}
+{
+  \rat_parse:Nn \l_tmpa_tl {#1}
+  \rat_parse:Nn \l_tmpb_tl {#2}
+
+    \(\rat_to_frac:V \l_tmpa_tl\) ~ is~ 
+  \rat_compare:VNVTF \l_tmpa_tl < \l_tmpb_tl
+  { less } { greater } ~
+  than~ \(\rat_to_frac:V \l_tmpb_tl\)
+}
+
+\NewDocumentCommand \RatMonomial {O{x} m m}
+{
+  \rat_parse:Nn \l_tmpa_tl {#2}
+  \tl_put_left:Nn \l_tmpa_tl {#3}
+  \rat_monomial:Vn \l_tmpa_tl {#1}
+}
+
+\seq_new:N \l_rat_tmpa_seq
+\seq_new:N \l_rat_tmpb_seq
+\NewDocumentCommand \RatPolynomial {O{x} m m}
+{
+  \seq_clear:N \l_rat_tmpa_seq
+  \seq_clear:N \l_rat_tmpb_seq
+  \clist_map_inline:nn {#2}
+  {
+    \rat_parse:Ne \l_tmpa_tl {\tl_item:nn {##1}{1}}
+    \seq_put_right:Ne \l_rat_tmpa_seq { {\tl_item:nn {##1}{2}} \l_tmpa_tl}
+  }
+  \clist_map_inline:nn {#3}
+  {
+    \rat_parse:Ne \l_tmpa_tl {\tl_item:nn {##1}{1}}
+    \seq_put_right:Ne \l_rat_tmpb_seq { {\tl_item:nn {##1}{2}} \l_tmpa_tl}
+  }
+  \left(\rat_polynomial:Nn \l_rat_tmpa_seq {#1}\right) \times
+  \left(\rat_polynomial:Nn \l_rat_tmpb_seq {#1}\right)
+  = 
+  \rat_mult_polynomials:NN \l_rat_tmpa_seq \l_rat_tmpb_seq
+  \rat_polynomial:Nn \l_rat_tmpa_seq {#1}
+}
+
+\ExplSyntaxOff
+\begin{document}
+\GCD{18}{12}
+
+\[
+  \RatDiv {2/3}{3/4}
+\]
+
+\RatCompare {2/3} {3/4}
+
+\[
+\RatMonomial{-1/12}{7}
+\]
+
+\[
+  \RatPolynomial
+  { {2}{1}, {3}{0} }
+  { {7/5}{1}, {-2}{0} }
+  \]
+
+\end{document}
