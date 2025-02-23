@@ -78,7 +78,7 @@ and the derived files            rationals.sty
 \end{document}
 %</driver>
 % \fi
-% \CheckSum{}
+% \CheckSum{1}
 %
 % \CharacterTable
 %  {Upper-case    \A\B\C\D\E\F\G\H\I\J\K\L\M\N\O\P\Q\R\S\T\U\V\W\X\Y\Z
@@ -638,7 +638,13 @@ and the derived files            rationals.sty
 %
 % \begin{macro}{
 % \rat_to_frac:n,
+% \rat_to_frac:V,
+% \rat_to_frac:e,
+% \rat_to_frac:o,
 % \rat_to_signed_frac:n
+% \rat_to_signed_frac:V
+% \rat_to_signed_frac:e
+% \rat_to_signed_frac:o
 % }
 %
 % Format a rational number for display, using \Verb!\frac! if the rational number is not an integer.
@@ -860,7 +866,8 @@ and the derived files            rationals.sty
 % \end{macro}
 %
 % \begin{macro}{
-% \rat_polynomial:Nn
+% \rat_polynomial:Nn,
+% \rat_polynomial:NV,
 % }
 %
 % This typesets a polynomial
@@ -885,6 +892,7 @@ and the derived files            rationals.sty
     }
   }
 }
+\cs_generate_variant:Nn \rat_polynomial:Nn {NV}
 %    \end{macrocode}
 % \end{macro}
 %
