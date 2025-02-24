@@ -412,7 +412,7 @@ and the derived files            rationals.sty
 
 \cs_new_protected_nopar:Npn \rat_gadd:Nn #1#2
 {
-  \rad_gadd:NVn #1#1{#2}
+  \rat_gadd:NVn #1#1{#2}
 }
 
 \cs_generate_variant:Nn \rat_add:Nn {NV, Ne}
@@ -485,12 +485,12 @@ and the derived files            rationals.sty
 
 \cs_new_protected_nopar:Npn \rat_sub:Nn #1#2
 {
-  \rad_sub:NVn #1#1#2
+  \rat_sub:NVn #1#1{#2}
 }
 
 \cs_new_protected_nopar:Npn \rat_gsub:Nn #1#2
 {
-  \rad_gsub:NVn #1#1#2
+  \rat_gsub:NVn #1#1{#2}
 }
 
 \cs_generate_variant:Nn \rat_sub:Nn {NV}
@@ -554,12 +554,12 @@ and the derived files            rationals.sty
 
 \cs_new_protected_nopar:Npn \rat_mult:Nn #1#2
 {
-  \rad_mult:NVn #1#1#2
+  \rat_mult:NVn #1#1{#2}
 }
 
 \cs_new_protected_nopar:Npn \rat_gmult:Nn #1#2
 {
-  \rad_gmult:NVn #1#1#2
+  \rat_gmult:NVn #1#1{#2}
 }
 
 \cs_generate_variant:Nn \rat_mult:Nn {NV}
@@ -623,12 +623,12 @@ and the derived files            rationals.sty
 
 \cs_new_protected_nopar:Npn \rat_div:Nn #1#2
 {
-  \rad_div:NVn #1#1#2
+  \rat_div:NVn #1#1{#2}
 }
 
 \cs_new_protected_nopar:Npn \rat_gdiv:Nn #1#2
 {
-  \rad_gdiv:NVn #1#1#2
+  \rat_gdiv:NVn #1#1{#2}
 }
 
 \cs_generate_variant:Nn \rat_div:Nn {NV}
@@ -639,10 +639,12 @@ and the derived files            rationals.sty
 % \begin{macro}{
 % \rat_to_frac:n,
 % \rat_to_frac:V,
+% \rat_to_frac:v,
 % \rat_to_frac:e,
 % \rat_to_frac:o,
 % \rat_to_signed_frac:n
 % \rat_to_signed_frac:V
+% \rat_to_signed_frac:v
 % \rat_to_signed_frac:e
 % \rat_to_signed_frac:o
 % }
@@ -683,8 +685,25 @@ and the derived files            rationals.sty
   }
 }
 
-\cs_generate_variant:Nn \rat_to_frac:n {V, e, o}
-\cs_generate_variant:Nn \rat_to_signed_frac:n {V, e, o}
+\cs_generate_variant:Nn \rat_to_frac:n {V, v, e, o}
+\cs_generate_variant:Nn \rat_to_signed_frac:n {V, v, e, o}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_to_number:N
+% }
+% Convert a rational number to a number, which can then be used as an integer or floating point.
+%    \begin{macrocode}
+\cs_new_protected_nopar:Npn \@@_rat_to_number:nnn #1#2#3
+{
+  (#1)*(#2)/(#3)
+}
+\cs_new_protected_nopar:Npn \rat_to_number:n #1
+{
+  \@@_rat_to_number:nnn #1
+}
+\cs_generate_variant:Nn \rat_to_number:n {V}
 %    \end{macrocode}
 % \end{macro}
 %
@@ -757,6 +776,32 @@ and the derived files            rationals.sty
   { \tl_item:Nn {#1} {1} * \tl_item:Nn {#1} {2} * \tl_item:Nn {#3} {3} }
   #2
   { \tl_item:Nn {#3} {1} * \tl_item:Nn {#3} {2} * \tl_item:Nn {#1} {3} }
+  {
+    \prg_return_true:
+  }
+  {
+    \prg_return_false:
+  }
+}
+
+\prg_generate_conditional_variant:Nnn \rat_compare:nNn {VNV,VNn} {p,T,F,TF}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{
+% \rat_int_compare:nNnTF,
+% \rat_int_compare:VNnTF,
+% \rat_int_compare:VNVTF
+% }
+%
+% Compare a rational number with an integer.
+%    \begin{macrocode}
+\prg_new_conditional:Npnn \rat_int_compare:nNn #1#2#3 { p, T, F, TF }
+{
+  \int_compare:nNnTF
+  { \tl_item:Nn {#1} {1} * \tl_item:Nn {#1} {2} }
+  #2
+  { #3 * \tl_item:Nn {#1} {3} }
   {
     \prg_return_true:
   }
